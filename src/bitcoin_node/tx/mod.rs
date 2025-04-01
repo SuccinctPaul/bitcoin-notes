@@ -5,6 +5,7 @@ use secp256k1::{Keypair, Secp256k1, Signing, Verification};
 use std::str::FromStr;
 
 mod presing_tx_taproot;
+pub mod rbf;
 pub mod sign_tx_taproot;
 pub mod taproot_tree_tx;
 

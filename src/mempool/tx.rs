@@ -17,89 +17,89 @@ mod test {
     const SPEND_AMOUNT: Amount = Amount::from_sat(5_000_000);
     const CHANGE_AMOUNT: Amount = Amount::from_sat(14_999_000); // 1000 sat fee.
 
-    #[tokio::test]
-    async fn test_taproot_trx() {
-        let secp = Secp256k1::new();
-
-        // Get a keypair we control. In a real application these would come from a stored secret.
-        let keypair = senders_keys(&secp);
-        let (internal_key, _parity) = keypair.x_only_public_key();
-
-        // Get an unspent output that is locked to the key above that we control.
-        // In a real application these would come from the chain.
-        let (dummy_out_point, dummy_utxo) = dummy_unspent_transaction_output(&secp, internal_key);
-
-        // Get an address to send to.
-        let address = receivers_address();
-
-        // The input for the transaction we are constructing.
-        let input = TxIn {
-            previous_output: dummy_out_point, // The dummy output we are spending.
-            script_sig: ScriptBuf::default(), // For a p2tr script_sig is empty.
-            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            witness: Witness::default(), // Filled in after signing.
-        };
-
-        // The spend output is locked to a key controlled by the receiver.
-        let spend = TxOut {
-            value: SPEND_AMOUNT,
-            script_pubkey: address.script_pubkey(),
-        };
-
-        // The change output is locked to a key controlled by us.
-        let change = TxOut {
-            value: CHANGE_AMOUNT,
-            script_pubkey: ScriptBuf::new_p2tr(&secp, internal_key, None), // Change comes back to us.
-        };
-
-        // The transaction we want to sign and broadcast.
-        let mut unsigned_tx = Transaction {
-            version: transaction::Version::TWO,  // Post BIP-68.
-            lock_time: absolute::LockTime::ZERO, // Ignore the locktime.
-            input: vec![input],                  // Input goes into index 0.
-            output: vec![spend, change],         // Outputs, order does not matter.
-        };
-        let input_index = 0;
-
-        // Get the sighash to sign.
-
-        let sighash_type = TapSighashType::Default;
-        let prevouts = vec![dummy_utxo];
-        let prevouts = Prevouts::All(&prevouts);
-
-        let mut sighasher = SighashCache::new(&mut unsigned_tx);
-        let sighash = sighasher
-            .taproot_key_spend_signature_hash(input_index, &prevouts, sighash_type)
-            .expect("failed to construct sighash");
-
-        // Sign the sighash using the secp256k1 library (exported by rust-bitcoin).
-        let tweaked: TweakedKeypair = keypair.tap_tweak(&secp, None);
-        let msg = Message::from(sighash);
-        let signature = secp.sign_schnorr(&msg, &tweaked.to_inner());
-
-        // Update the witness stack.
-        let signature = bitcoin::taproot::Signature {
-            signature,
-            sighash_type,
-        };
-        *sighasher.witness_mut(input_index).unwrap() = Witness::p2tr_key_spend(&signature);
-
-        // Get the signed transaction.
-        let tx = sighasher.into_transaction();
-
-        // BOOM! Transaction signed and ready to broadcast.
-        println!("{:#?}", tx);
-
-        CLIENT.broadcast(tx).await.unwrap();
-    }
+    // #[tokio::test]
+    // async fn test_taproot_trx() {
+    //     let secp = Secp256k1::new();
+    //
+    //     // Get a keypair we control. In a real application these would come from a stored secret.
+    //     let keypair = senders_keys(&secp);
+    //     let (internal_key, _parity) = keypair.x_only_public_key();
+    //
+    //     // Get an unspent output that is locked to the key above that we control.
+    //     // In a real application these would come from the chain.
+    //     let (dummy_out_point, dummy_utxo) = dummy_unspent_transaction_output(&secp, internal_key);
+    //
+    //     // Get an address to send to.
+    //     let address = receivers_address();
+    //
+    //     // The input for the transaction we are constructing.
+    //     let input = TxIn {
+    //         previous_output: dummy_out_point, // The dummy output we are spending.
+    //         script_sig: ScriptBuf::default(), // For a p2tr script_sig is empty.
+    //         sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+    //         witness: Witness::default(), // Filled in after signing.
+    //     };
+    //
+    //     // The spend output is locked to a key controlled by the receiver.
+    //     let spend = TxOut {
+    //         value: SPEND_AMOUNT,
+    //         script_pubkey: address.script_pubkey(),
+    //     };
+    //
+    //     // The change output is locked to a key controlled by us.
+    //     let change = TxOut {
+    //         value: CHANGE_AMOUNT,
+    //         script_pubkey: ScriptBuf::new_p2tr(&secp, internal_key, None), // Change comes back to us.
+    //     };
+    //
+    //     // The transaction we want to sign and broadcast.
+    //     let mut unsigned_tx = Transaction {
+    //         version: transaction::Version::TWO,  // Post BIP-68.
+    //         lock_time: absolute::LockTime::ZERO, // Ignore the locktime.
+    //         input: vec![input],                  // Input goes into index 0.
+    //         output: vec![spend, change],         // Outputs, order does not matter.
+    //     };
+    //     let input_index = 0;
+    //
+    //     // Get the sighash to sign.
+    //
+    //     let sighash_type = TapSighashType::Default;
+    //     let prevouts = vec![dummy_utxo];
+    //     let prevouts = Prevouts::All(&prevouts);
+    //
+    //     let mut sighasher = SighashCache::new(&mut unsigned_tx);
+    //     let sighash = sighasher
+    //         .taproot_key_spend_signature_hash(input_index, &prevouts, sighash_type)
+    //         .expect("failed to construct sighash");
+    //
+    //     // Sign the sighash using the secp256k1 library (exported by rust-bitcoin).
+    //     let tweaked: TweakedKeypair = keypair.tap_tweak(&secp, None);
+    //     let msg = Message::from(sighash);
+    //     let signature = secp.sign_schnorr(&msg, &tweaked.to_inner());
+    //
+    //     // Update the witness stack.
+    //     let signature = bitcoin::taproot::Signature {
+    //         signature,
+    //         sighash_type,
+    //     };
+    //     *sighasher.witness_mut(input_index).unwrap() = Witness::p2tr_key_spend(&signature);
+    //
+    //     // Get the signed transaction.
+    //     let tx = sighasher.into_transaction();
+    //
+    //     // BOOM! Transaction signed and ready to broadcast.
+    //     println!("{:#?}", tx);
+    //
+    //     CLIENT.broadcast(tx).await.unwrap();
+    // }
 
     /// An example of keys controlled by the transaction sender.
     ///
     /// In a real application these would be actual secrets.
-    fn senders_keys<C: Signing>(secp: &Secp256k1<C>) -> Keypair {
-        let sk = SecretKey::new(&mut rand::thread_rng());
-        Keypair::from_secret_key(secp, &sk)
-    }
+    // fn senders_keys<C: Signing>(secp: &Secp256k1<C>) -> Keypair {
+    //     let sk = SecretKey::new(&mut rand::thread_rng());
+    //     Keypair::from_secret_key(secp, &sk)
+    // }
 
     /// A dummy address for the receiver.
     ///

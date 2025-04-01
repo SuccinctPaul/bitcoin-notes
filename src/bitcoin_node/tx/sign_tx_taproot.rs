@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: CC0-1.0
-
 //! Demonstrate creating a transaction that spends to and from p2tr outputs.
 
 use std::str::FromStr;
